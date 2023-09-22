@@ -1,9 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 import os, requests, json, base64
 from urllib.parse import quote_plus
 from fastapi.responses import RedirectResponse
 from typing import Optional
 import datetime as dt
+
 
 app = FastAPI()
 
@@ -52,9 +53,9 @@ class SpotifyToken:
     @property
     def expired(self):
         if self.expires is None:
-            raise Exception("Token expiry time has not been set")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expiry time has not been set")
         
-        return self.expires > dt.datetime.now()
+        return self.expires - dt.timedelta(seconds=10) > dt.datetime.now()
 
     def get_current_queue(self):
         url = API_URL + "me/player/queue"
@@ -92,8 +93,27 @@ class SpotifyToken:
         self.expires = token._calculate_expires(response.get("expires_in"))
 
 
-token = SpotifyToken()
+class SpotifyAPI:
+    base_url = "https://api.spotify.com/v1/me/"
+    
+    def __init__(self, token_obj: SpotifyToken):
+        self.access_token = token_obj.access_token
 
+    def search(self, query: str):
+        response: dict = requests.get(
+            url=f"{self.base_url}/search?q={query}&type=track&limit=10",
+            headers={
+                "Authorization": f"Bearer {self.access_token}"
+            }
+        ).json()
+        error = response.get("error")
+        if error:
+            print(error)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        return response["tracks"]
+
+token = SpotifyToken()
+spotify_obj = SpotifyAPI(token)
 
 @app.get("/")
 async def root():
@@ -119,3 +139,9 @@ async def spotify_callback(code: str, state: Optional[str] = None):
 @app.get("/current_queue/")
 async def get_current_queue():
     return token.get_current_queue()
+
+@app.get("/search/{query}/")
+async def search(query: str):
+    return spotify_obj.search(query=query)
+
+ 
