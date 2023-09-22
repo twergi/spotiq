@@ -90,58 +90,61 @@ class SpotifyToken:
         self.access_token = response.get("access_token")
         self.token_type = response.get("token_type")
         self.refresh_token = response.get("refresh_token")
-        self.expires = token._calculate_expires(response.get("expires_in"))
+        self.expires = self._calculate_expires(response.get("expires_in"))
 
 
 class SpotifyAPI:
-    base_url = "https://api.spotify.com/v1/me/"
+    base_url = "https://api.spotify.com/v1"
     
-    def __init__(self, token_obj: SpotifyToken):
-        self.access_token = token_obj.access_token
+    def __init__(self):
+        self.token_obj = SpotifyToken()
 
-    def search(self, query: str):
+    def search(self, query: str) -> dict:
+        print(f"{self.base_url}/search?q={query}&type=track&limit=10)")
         response: dict = requests.get(
             url=f"{self.base_url}/search?q={query}&type=track&limit=10",
+            
             headers={
-                "Authorization": f"Bearer {self.access_token}"
+                "Authorization": f"Bearer {self.token_obj.access_token}"
             }
-        ).json()
+        )
+        print(response)
+        print(response.content)
+        response=response.json()
+        print(response)
         error = response.get("error")
         if error:
-            print(error)
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
         return response["tracks"]
 
-token = SpotifyToken()
-spotify_obj = SpotifyAPI(token)
+
+spotify_obj = SpotifyAPI()
 
 @app.get("/")
 async def root():
     return {
         "token": {
-            "access_token": token.access_token,
-            "token_type": token.token_type,
-            "refresh_token": token.refresh_token,
-            "expires": token.expires
+            "access_token": spotify_obj.token_obj.access_token,
+            "token_type": spotify_obj.token_obj.token_type,
+            "refresh_token": spotify_obj.token_obj.refresh_token,
+            "expires": spotify_obj.token_obj.expires
         }
     }
 
 @app.get("/login/", response_class=RedirectResponse, status_code=302)
 async def login():
-    url = token.create_auth_url()
+    url = spotify_obj.token_obj.create_auth_url()
     return url
 
 @app.get("/callback/", response_class=RedirectResponse, status_code=302)
 async def spotify_callback(code: str, state: Optional[str] = None):
-    token.refresh(code)
+    spotify_obj.token_obj.refresh(code)
     return "http://localhost:8000/"
 
 @app.get("/current_queue/")
 async def get_current_queue():
-    return token.get_current_queue()
+    return spotify_obj.token_obj.get_current_queue()
 
-@app.get("/search/{query}/")
-async def search(query: str):
-    return spotify_obj.search(query=query)
-
- 
+@app.get("/search")
+async def search(q: str):
+    return spotify_obj.search(query=q)
