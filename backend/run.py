@@ -288,6 +288,13 @@ async def spotify_callback(code: str, state: Optional[str] = None):
 async def get_current_queue():
     return api_obj.get_current_queue()
 
+class Song(BaseModel):
+    uri: str
+
+@app.post("/current_queue/")
+async def get_current_queue(song_info: Song):
+    return api_obj.add_to_queue(song_info)
+
 
 @app.get("/currently_playing/")
 async def get_currently_playing():
