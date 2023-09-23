@@ -1,15 +1,16 @@
-import { AddIcon, SearchIcon } from "@chakra-ui/icons";
+import { AddIcon, CloseIcon, SearchIcon } from "@chakra-ui/icons";
 import {
-    HStack,
-    Heading,
-    IconButton,
-    Image,
-    Input,
-    Spacer,
-    Spinner,
-    Text,
-    VStack,
-    useToast
+  HStack,
+  Heading,
+  IconButton,
+  Image,
+  Input,
+  InputGroup,
+  InputRightElement,
+  Spinner,
+  Text,
+  VStack,
+  useToast
 } from "@chakra-ui/react";
 import axios from "axios";
 import { useState } from "react";
@@ -21,9 +22,11 @@ const ResultsItem = ({ uri, name, artistsNamesArr, imageUrl }) => {
 
   const handleSubmitSong = async () => {
     setLoading(true);
-    console.log(uri)
+    console.log(uri);
     try {
-      var response = await axios.post(`${API_BASE_PATH}/current_queue/`, {uri: uri});
+      var response = await axios.post(`${API_BASE_PATH}/current_queue/`, {
+        uri: uri,
+      });
     } catch (error) {
       console.log(error);
       toast({
@@ -49,28 +52,41 @@ const ResultsItem = ({ uri, name, artistsNamesArr, imageUrl }) => {
   };
 
   return (
-    <HStack p="20px" bg="gray.500" w="100%" gap="25px">
+    <HStack p="20px" bg="gray.700" w="100%" gap="25px" overflowX="auto">
+      <IconButton
+        bg="green.400"
+        icon={loading ? <Spinner /> : <AddIcon />}
+        onClick={() => {
+          handleSubmitSong();
+        }}
+      />
       <Image src={imageUrl.url} alt="image" boxSize="100px" />
       <VStack align="start">
-        <Text>{name}</Text>
-        <HStack align="start">
+      <HStack>
+          <Text>Name:</Text>
+          <Text bg="gray.900" p="5px" borderRadius="5px">
+            {name}
+          </Text>
+        </HStack>
+        <HStack align="center">
+          <Text>
+            Artists:
+          </Text>
           {artistsNamesArr.map((artist, index) => {
             return (
-              <Text key={index} mr="5px">
+              <Text
+                key={index}
+                mr="5px"
+                bg="gray.800"
+                p="5px"
+                borderRadius="5px"
+              >
                 {artist.name}
               </Text>
             );
           })}
         </HStack>
       </VStack>
-      <Spacer />
-      <IconButton
-        colorScheme="green"
-        icon={loading ? <Spinner /> : <AddIcon />}
-        onClick={() => {
-          handleSubmitSong();
-        }}
-      />
     </HStack>
   );
 };
@@ -109,19 +125,27 @@ const SearchComponent = () => {
 
   return (
     <VStack w="100%">
-      <Heading>Search</Heading>
+      <Heading fontSize="25px" alignSelf="start" ml="18px">Search</Heading>
       <HStack w="100%" as="form" onSubmit={handleSubmitQuery}>
+      <InputGroup>
         <Input
           focusBorderColor="green.100"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="type here"
-        />
+          placeholder="Search for track..."
+          />
+          {query !== "" &&
+          <InputRightElement _hover={{cursor: "pointer"}} onClick={() => {
+            setQuery("");
+            setSearchResults([]);
+          }} children={<CloseIcon/>}/> }
+          </InputGroup>
         <IconButton colorScheme="green" icon={<SearchIcon />} type="submit" />
+
       </HStack>
       <VStack
         w="100%"
-        maxH="400px"
+        // maxH="400px"
         overflowY={loading ? "none" : "auto"}
         align="start"
       >

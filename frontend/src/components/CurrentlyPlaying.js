@@ -1,16 +1,31 @@
 import { HStack, Image, Text, VStack } from "@chakra-ui/react";
 
-
-const CurrentlyPlaying = ({currentlyPlaying}) => {
+const CurrentlyPlaying = ({ currentlyPlaying }) => {
   return (
-    <HStack p="20px" bg="green.400" w="100%" gap="25px">
-      <Image src={currentlyPlaying.album.images[1].url} alt="image" boxSize="100px" />
+    <HStack p="20px" bg="green.400" w="100%" gap="25px" overflowX="auto">
+      <Image
+        src={currentlyPlaying?.album?.images[1]?.url}
+        alt="image"
+        boxSize="100px"
+      />
       <VStack align="start">
-        <Text>{currentlyPlaying.name}</Text>
+        <HStack>
+          <Text>Name:</Text>
+          <Text bg="green.800" p="5px" borderRadius="5px">
+            {currentlyPlaying?.name}
+          </Text>
+        </HStack>
         <HStack align="start">
-          {currentlyPlaying.artists.map((artist, index) => {
+          <Text>Artists:</Text>
+          {currentlyPlaying?.artists?.map((artist, index) => {
             return (
-              <Text key={index} mr="5px">
+              <Text
+                key={index}
+                mr="5px"
+                bg="green.700"
+                p="5px"
+                borderRadius="5px"
+              >
                 {artist.name}
               </Text>
             );
@@ -18,7 +33,7 @@ const CurrentlyPlaying = ({currentlyPlaying}) => {
         </HStack>
       </VStack>
     </HStack>
-  )
-}
+  );
+};
 
-export default CurrentlyPlaying
+export default CurrentlyPlaying;
