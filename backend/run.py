@@ -49,6 +49,7 @@ class SpotifyToken:
         scopes = (
             "user-read-playback-state",
             "user-read-currently-playing",
+            "user-modify-playback-state"
         )
         url = (
             requests.Request(
@@ -157,24 +158,24 @@ class SpotifyToken:
 
 
 class SpotifyDevice:
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         self.id = kwargs.get("id")
         self.name = kwargs.get("name")
         self.type = kwargs.get("type")
 
-    def get_data(self):
+    def get_data(self) -> Optional[dict]:
         return (
             {"id": self.id, "name": self.name, "type": self.type}
             if self.validate_device()
             else None
         )
 
-    def set_data(self, data):
+    def set_data(self, data: dict) -> None:
         self.id = data.get("id")
         self.name = data.get("name")
         self.type = data.get("type")
 
-    def validate_device(self):
+    def validate_device(self) -> bool:
         return self.id is not None
 
 
@@ -227,6 +228,29 @@ class SpotifyAPI:
 
         return response
 
+    def add_to_queue(self, song_info: dict) -> None:
+        song_uri = song_info.get("uri")
+
+        self.token.validate_token()
+        
+        url = "/me/player/queue"
+
+        response = requests.post(
+            url=self.base_url+url,
+            headers=self._make_auth_headers(),
+            params={
+                "uri": song_uri,
+                "device_id": self.device.id
+            },            
+        )
+
+        if response.status_code != 204:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=response.content.decode()
+            )
+
+
     def get_currently_playing(self):
         self.token.validate_token()
 
@@ -241,7 +265,6 @@ class SpotifyAPI:
 
         url = f"{self.base_url}/search?q={query}&type=track&limit=10"
 
-        # response: dict = requests.get(url=url, headers=self._make_auth_headers())
         response: dict = requests.get(url=url, headers=self._make_auth_headers()).json()
 
         error = response.get("error")
@@ -297,7 +320,7 @@ class Song(BaseModel):
 
 @app.post("/current_queue/")
 async def get_current_queue(song_info: Song):
-    return api_obj.add_to_queue(song_info)
+    return api_obj.add_to_queue(song_info.model_dump())
 
 
 @app.get("/currently_playing/")
@@ -323,5 +346,4 @@ class Device(BaseModel):
 
 @app.post("/devices/")
 async def set_device(device_info: Device):
-    # return api_obj.set_device(device_info) 
-    return api_obj.set_device(device_info.model_dump()) # !!!!!! инече не dict дальше спускается
+    return api_obj.set_device(device_info.model_dump())
