@@ -1,5 +1,6 @@
 from typing import Optional
 
+
 class SpotifyDevice:
     def __init__(self, *args, **kwargs) -> None:
         self.id = kwargs.get("id")

@@ -47,8 +47,6 @@ async def get_current_queue():
     return api_obj.get_current_queue()
 
 
-
-
 @router.post("/current_queue/")
 async def get_current_queue(song_info: Song):
     return api_obj.add_to_queue(song_info.model_dump())
@@ -67,8 +65,6 @@ async def search(q: str):
 @router.get("/devices/")
 async def get_devices():
     return api_obj.get_devices()
-
-
 
 
 @router.post("/devices/")

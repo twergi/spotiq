@@ -1,6 +1,6 @@
 from fastapi import HTTPException, status
-from Spotify.Token import SpotifyToken  
-from Spotify.Device import SpotifyDevice  
+from Spotify.Token import SpotifyToken
+from Spotify.Device import SpotifyDevice
 import requests
 
 

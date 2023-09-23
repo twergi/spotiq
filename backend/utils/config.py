@@ -1,8 +1,9 @@
 import os
 
 
-BACKEND_URL = "http://localhost:8000"
-FRONTEND_URL = "http://localhost:3000"
+# BACKEND_URL = "http://localhost:8000"
+BACKEND_URL = "http://0.0.0.0:8000"
+FRONTEND_URL = "http://localhost"
 
 CLIENT_ID = os.environ.get("CLIENT_ID")
 CLIENT_SECRET = os.environ.get("CLIENT_SECRET")

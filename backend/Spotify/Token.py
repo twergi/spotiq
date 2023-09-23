@@ -132,6 +132,3 @@ class SpotifyToken:
         self.token_type = response.get("token_type")
         self.refresh_token = response.get("refresh_token")
         self.expires_at = self._calculate_expires_at(response.get("expires_in"))
-
-
-
