@@ -16,6 +16,7 @@ origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -25,8 +26,8 @@ CLIENT_SECRET = os.environ.get("CLIENT_SECRET")
 assert CLIENT_ID is not None, ""
 assert CLIENT_SECRET is not None
 
-HOME_URL = "http://localhost:8000"
-
+BACKEND_URL = "http://localhost:8000"
+FRONTEND_URL = "http://localhost:3000"
 
 class SpotifyToken:
     token_url = "https://accounts.spotify.com/api/token"
@@ -44,7 +45,7 @@ class SpotifyToken:
 
     def create_auth_url(self) -> Optional[str]:
         response_type = "code"
-        redirect_uri = f"{HOME_URL}/callback/"
+        redirect_uri = f"{BACKEND_URL}/callback/"
         scopes = (
             "user-read-playback-state",
             "user-read-currently-playing",
@@ -132,7 +133,7 @@ class SpotifyToken:
 
     def _create_token_data(self, code: str):
         grant_type = "authorization_code"
-        redirect_uri = f"{HOME_URL}/callback/"
+        redirect_uri = f"{BACKEND_URL}/callback/"
 
         response: dict = requests.post(
             url=self.token_url,
@@ -206,11 +207,13 @@ class SpotifyAPI:
     def get_devices(self):
         self.token.validate_token()
 
-        response: dict = requests.get(
+        response = requests.get(
             url=self.base_url + "/me/player/devices", headers=self._make_auth_headers()
-        ).json()
+        )
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=response.content.decode())
 
-        return response
+        return response.json()
 
     def set_device(self, device_info: dict):
         self.device.set_data(device_info)
@@ -271,7 +274,7 @@ async def login():
 )
 async def login():
     api_obj.clear_data()
-    return HOME_URL
+    return BACKEND_URL
 
 
 @app.get(
@@ -281,7 +284,7 @@ async def login():
 )
 async def spotify_callback(code: str, state: Optional[str] = None):
     api_obj.create_token_data(code)
-    return HOME_URL
+    return FRONTEND_URL
 
 
 @app.get("/current_queue/")
