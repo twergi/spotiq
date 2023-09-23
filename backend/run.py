@@ -5,7 +5,7 @@ from typing import Optional
 import datetime as dt
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-
+import json
 
 app = FastAPI()
 
@@ -169,7 +169,7 @@ class SpotifyDevice:
             else None
         )
 
-    def set_data(self, data: dict):
+    def set_data(self, data):
         self.id = data.get("id")
         self.name = data.get("name")
         self.type = data.get("type")
@@ -241,7 +241,8 @@ class SpotifyAPI:
 
         url = f"{self.base_url}/search?q={query}&type=track&limit=10"
 
-        response: dict = requests.get(url=url, headers=self._make_auth_headers())
+        # response: dict = requests.get(url=url, headers=self._make_auth_headers())
+        response: dict = requests.get(url=url, headers=self._make_auth_headers()).json()
 
         error = response.get("error")
         if error:
@@ -322,4 +323,5 @@ class Device(BaseModel):
 
 @app.post("/devices/")
 async def set_device(device_info: Device):
-    return api_obj.set_device(device_info)
+    # return api_obj.set_device(device_info) 
+    return api_obj.set_device(device_info.model_dump()) # !!!!!! инече не dict дальше спускается

@@ -15,7 +15,23 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { API_BASE_PATH } from "../constants";
 
-const DevicePage = () => {
+const EmojiBasedOnType = ({ type }) => {
+  let returnVal = "";
+  switch (type) {
+    case "Computer":
+      returnVal = "💻";
+      break;
+    case "Smartphone":
+      returnVal = "📱";
+      break;
+    case "Speaker":
+      returnVal = "🔊";
+      break;
+  }
+  return <Text>{returnVal}</Text>;
+};
+
+const DevicePage = ({ setShowDevice }) => {
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [devicesArr, setDevicesArr] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -26,6 +42,7 @@ const DevicePage = () => {
       setLoading(true);
       try {
         var response = await axios.get(`${API_BASE_PATH}/devices/`);
+        console.log(response);
       } catch (error) {
         toast({
           title: "Error",
@@ -37,7 +54,8 @@ const DevicePage = () => {
         setLoading(false);
         return;
       }
-      setDevicesArr(response.data);
+      setDevicesArr(response.data.devices);
+      setLoading(false);
     };
     getDevices();
   }, []);
@@ -51,7 +69,10 @@ const DevicePage = () => {
         value={id}
         w="100%"
       >
-        <Text ml="10px">{name}</Text>
+        <HStack spacing="0">
+          <EmojiBasedOnType type={type} />
+          <Text ml="10px">{name}</Text>
+        </HStack>
       </Radio>
     );
   };
@@ -63,6 +84,46 @@ const DevicePage = () => {
         break;
       }
     }
+  };
+
+  const handleSelectDevice = () => {
+    const selectDevice = async () => {
+      setLoading(true);
+      try {
+        // console.log(selectedDevice);
+        var response = await axios.post(`${API_BASE_PATH}/devices`, {
+          id: selectedDevice.id,
+          name: selectedDevice.name,
+          type: selectedDevice.type,
+        });
+      } catch (error) {
+        // console.log(error);
+        toast({
+          title: "Error",
+          description: error.response?.data?.detail || error.message,
+          status: "error",
+          duration: 8000,
+          isClosable: true,
+        });
+        setLoading(false);
+        return;
+      }
+      if (response.status !== 200) {
+        toast({
+          title: "Error",
+          description: "Something went wrong",
+          status: "error",
+          duration: 8000,
+          isClosable: true,
+        });
+        setLoading(false);
+      }
+      if (response.status === 200) {
+        setLoading(false);
+        setShowDevice(false);
+      }
+    };
+    selectDevice();
   };
 
   return (
@@ -89,7 +150,7 @@ const DevicePage = () => {
             <RadioGroup
               name="device"
               onChange={handleChange}
-              value={selectedDevice?.id || devicesArr[0]?.id}
+              value={selectedDevice?.id}
               maxH="250px"
               overflowY="auto"
             >
@@ -104,9 +165,9 @@ const DevicePage = () => {
         colorScheme="green"
         isDisabled={selectedDevice === null}
         w="50%"
-        onClick={() => console.log(selectedDevice)}
+        onClick={handleSelectDevice}
       >
-        OK
+        Select
       </Button>
     </VStack>
   );

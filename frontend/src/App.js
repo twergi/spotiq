@@ -22,21 +22,20 @@ const App = () => {
   useEffect(() => {
     const setUp = async () => {
       setLoading(true);
-      try{
+      try {
         var response = await axios.get(`${API_BASE_PATH}/`);
-        console.log(response)
-      }
-      catch (error) {
-        console.log(error)
+        // console.log(response)
+      } catch (error) {
+        console.log(error);
         toast({
           title: "Error",
           description: error.response?.data?.detail || error.message,
           status: "error",
           duration: 8000,
           isClosable: true,
-        })
+        });
         setLoading(false);
-        return
+        return;
       }
 
       if (response.data.token === null) {
@@ -59,9 +58,13 @@ const App = () => {
       {loading ? (
         <Spinner color="green" size="xl" />
       ) : (
-        <DynamicPage showDevice={showDevice} showLogin={showLogin} />
+        <DynamicPage
+          showDevice={showDevice}
+          setShowLogin={setShowLogin}
+          setShowDevice={setShowDevice}
+          showLogin={showLogin}
+        />
       )}
-    {/* <DevicePage/> */}
     </Center>
   );
 };
