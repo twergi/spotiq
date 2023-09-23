@@ -1,19 +1,21 @@
-import { Button, HStack, Spacer, Text } from "@chakra-ui/react";
-import { API_BASE_PATH } from "../constants";
-import SearchComponent from "../components/SearchComponent";
+import { VStack } from "@chakra-ui/react";
+import { useState } from "react";
+import CurrentlyPlaying from "../components/CurrentlyPlaying";
 import QueueComponent from "../components/QueueComponent";
-
+import SearchComponent from "../components/SearchComponent";
 
 const MainPage = () => {
-    return (
+  const [currentlyPlaying, setCurrentlyPlaying] = useState(null);
 
-        <HStack w="80vw" maxW="1200px" border="1px solid red" h="90dvh" justifyContent="center">
+  return (
+    <VStack w="80vw" maxW="1200px" overflowY="none">
+      {currentlyPlaying !== null && (
+        <CurrentlyPlaying currentlyPlaying={currentlyPlaying} />
+      )}
+      <QueueComponent setCurrentlyPlaying={setCurrentlyPlaying} />
+      <SearchComponent />
+    </VStack>
+  );
+};
 
-        {/* <SearchComponent/> */}
-        {/* <SearchComponent/> */}
-        <QueueComponent/>
-        </HStack>
-    );
-  };
-
-export default MainPage
+export default MainPage;

@@ -1,6 +1,6 @@
-import LoginPage from "./LoginPage";
 import DevicePage from "./DevicePage";
-import MainPage from "./MainPage"
+import LoginPage from "./LoginPage";
+import MainPage from "./MainPage";
 
 const DynamicPage = ({ showLogin, showDevice, setShowDevice }) => {
     if (showLogin === true) {

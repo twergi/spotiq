@@ -1,16 +1,12 @@
 import {
-  Button,
   Center,
-  Flex,
-  Text,
-  useToast,
   Spinner,
+  useToast
 } from "@chakra-ui/react";
-import { useEffect, useState } from "react";
 import axios from "axios";
+import { useEffect, useState } from "react";
 import { API_BASE_PATH } from "./constants";
 import DynamicPage from "./pages/DynamicPage";
-import DevicePage from "./pages/DevicePage";
 
 const App = () => {
   const toast = useToast();
@@ -54,7 +50,7 @@ const App = () => {
   }, []);
 
   return (
-    <Center h="100dvh">
+    <Center mt="20px">
       {loading ? (
         <Spinner color="green" size="xl" />
       ) : (

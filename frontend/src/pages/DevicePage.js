@@ -1,18 +1,17 @@
 import {
+  Button,
   Center,
   Flex,
-  Text,
-  Heading,
-  Spacer,
-  VStack,
-  Button,
   HStack,
-  useToast,
+  Heading,
+  Radio, RadioGroup,
   Spinner,
+  Text,
+  VStack,
+  useToast
 } from "@chakra-ui/react";
-import { Radio, RadioGroup } from "@chakra-ui/react";
-import { useEffect, useState } from "react";
 import axios from "axios";
+import { useEffect, useState } from "react";
 import { API_BASE_PATH } from "../constants";
 
 const EmojiBasedOnType = ({ type }) => {

@@ -1,25 +1,52 @@
+import { AddIcon, SearchIcon } from "@chakra-ui/icons";
 import {
-  HStack,
-  Text,
-  Image,
-  Input,
-  VStack,
-  useToast,
-  Spinner,Spacer, Center, Heading,
+    HStack,
+    Heading,
+    IconButton,
+    Image,
+    Input,
+    Spacer,
+    Spinner,
+    Text,
+    VStack,
+    useToast
 } from "@chakra-ui/react";
-import { useState } from "react";
-import { IconButton } from "@chakra-ui/react";
-import { SearchIcon, AddIcon} from "@chakra-ui/icons";
 import axios from "axios";
+import { useState } from "react";
 import { API_BASE_PATH } from "../constants";
 
-
-
 const ResultsItem = ({ uri, name, artistsNamesArr, imageUrl }) => {
-const handleSubmitSong = async (uri) => {
-    const response = await axios.post(`${API_BASE_PATH}/`)
-    
-}
+  const toast = useToast();
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmitSong = async () => {
+    setLoading(true);
+    console.log(uri)
+    try {
+      var response = await axios.post(`${API_BASE_PATH}/current_queue/`, {uri: uri});
+    } catch (error) {
+      console.log(error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail.message || error.message,
+        status: "error",
+        duration: 8000,
+        isClosable: true,
+      });
+      setLoading(false);
+      return;
+    }
+    if (response.status === 200) {
+      toast({
+        title: "Success",
+        status: "success",
+        position: "top",
+        duration: 8000,
+        isClosable: true,
+      });
+      setLoading(false);
+    }
+  };
 
   return (
     <HStack p="20px" bg="gray.500" w="100%" gap="25px">
@@ -36,13 +63,19 @@ const handleSubmitSong = async (uri) => {
           })}
         </HStack>
       </VStack>
-      <Spacer/>
-      <IconButton colorScheme="green" icon={<AddIcon/>} onClick={() => {handleSubmitSong(uri)}}/>
+      <Spacer />
+      <IconButton
+        colorScheme="green"
+        icon={loading ? <Spinner /> : <AddIcon />}
+        onClick={() => {
+          handleSubmitSong();
+        }}
+      />
     </HStack>
   );
 };
 
-const SearchComponent = ({}) => {
+const SearchComponent = () => {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
@@ -56,7 +89,7 @@ const SearchComponent = ({}) => {
       try {
         var response = await axios.get(`${API_BASE_PATH}/search?q=${query}`);
       } catch (error) {
-        console.log(error)
+        console.log(error);
         toast({
           title: "Error",
           description: error.response?.data?.detail.message || error.message,
@@ -75,11 +108,9 @@ const SearchComponent = ({}) => {
   };
 
   return (
-    <VStack w="45%" h="100%">
-    <Heading>
-        Search
-    </Heading>
-      <HStack  w="100%" as="form" onSubmit={handleSubmitQuery}>
+    <VStack w="100%">
+      <Heading>Search</Heading>
+      <HStack w="100%" as="form" onSubmit={handleSubmitQuery}>
         <Input
           focusBorderColor="green.100"
           value={query}
@@ -88,17 +119,23 @@ const SearchComponent = ({}) => {
         />
         <IconButton colorScheme="green" icon={<SearchIcon />} type="submit" />
       </HStack>
-      <VStack  w="100%" h="100%"  overflowY={loading ? "none" : "auto"} align="start">
+      <VStack
+        w="100%"
+        maxH="400px"
+        overflowY={loading ? "none" : "auto"}
+        align="start"
+      >
         {loading ? (
           <Spinner mx="auto" color="green" size="lg" />
         ) : (
           searchResults.map((item) => {
             return (
               <ResultsItem
+                uri={item.uri}
                 key={item.uri}
                 name={item.name}
                 artistsNamesArr={item.artists}
-                imageUrl={item.album.images[0]}
+                imageUrl={item.album.images[1]}
               />
             );
           })
