@@ -4,7 +4,7 @@ from urllib.parse import quote_plus
 from fastapi.responses import RedirectResponse
 from typing import Optional
 import datetime as dt
-
+from pydantic import BaseModel
 
 app = FastAPI()
 
@@ -13,27 +13,25 @@ CLIENT_SECRET = os.environ.get("CLIENT_SECRET")
 assert CLIENT_ID is not None, ""
 assert CLIENT_SECRET is not None
 
-
-API_URL = "https://api.spotify.com/v1/"
+HOME_URL = "http://localhost:8000"
 
 class SpotifyToken:
-
     token_url = "https://accounts.spotify.com/api/token"
     login_url = "https://accounts.spotify.com/authorize"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, **kwargs):
         self.access_token = kwargs.get("access_token")
         self.token_type = kwargs.get("token_type")
         self.refresh_token = kwargs.get("refresh_token")
-        self.expires = kwargs.get("expires")
+        self.expires_at = kwargs.get("expires_at")
 
     @staticmethod
-    def _calculate_expires(expires_in: int) -> dt.datetime:
+    def _calculate_expires_at(expires_in: int) -> dt.datetime:
         return dt.datetime.now() + dt.timedelta(seconds=expires_in)
 
     def create_auth_url(self) -> Optional[str]:
         response_type = "code"
-        redirect_uri = "http://localhost:8000/callback/"
+        redirect_uri = f"{HOME_URL}/callback/"
         scopes = (
             "user-read-playback-state",
             "user-read-currently-playing",
@@ -51,26 +49,68 @@ class SpotifyToken:
         return url
 
     @property
-    def expired(self):
-        if self.expires is None:
+    def expired(self) -> bool:
+        if self.expires_at is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expiry time has not been set")
         
-        return self.expires - dt.timedelta(seconds=10) > dt.datetime.now()
+        return self.expires_at - dt.timedelta(seconds=10) > dt.datetime.now()
 
-    def get_current_queue(self):
-        url = API_URL + "me/player/queue"
+    def get_data(self):
+        return {
+            "access_token": self.access_token,
+            "token_type": self.token_type,
+            "refresh_token": self.refresh_token,
+            "expires_at": self.expires_at
+        } if self.validate_token() else None
 
-        response: dict = requests.get(
-            url=url,
-            headers={
-                "Authorization": f"Bearer {self.access_token}"
+    def validate_token(self) -> bool:
+        if not self.access_token:
+            return False
+
+        if self.expired:
+            self.refresh()
+
+        return self.expired
+
+    def refresh(self):
+        grant_type = "refresh_token"
+
+        response = requests.post(
+            url=self.token_url,
+            data={
+                "grant_type": grant_type,
+                "refresh_token": self.refresh_token
             }
-        ).json()
-        return response
+        )
 
-    def refresh(self, code: str):
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=response.content.decode()
+            )
+        
+        response = response.json()
+
+        access_token = response.get("access_token")
+        refresh_token = response.get("refresh_token")
+        expires_at = response.get("expires_at")
+        token_type = response.get("token_type")
+        error = response.get("error")
+
+        if error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error
+            )
+        
+        self.access_token = access_token or self.access_token
+        self.refresh_token = refresh_token or self.refresh_token
+        self.expires_at = expires_at or self.expires_at
+        self.token_type = token_type or self.token_type
+
+    def _create_token_data(self, code: str):
         grant_type = "authorization_code"
-        redirect_uri = "http://localhost:8000/callback/"
+        redirect_uri = f"{HOME_URL}/callback/"
 
         response: dict = requests.post(
             url=self.token_url,
@@ -90,61 +130,138 @@ class SpotifyToken:
         self.access_token = response.get("access_token")
         self.token_type = response.get("token_type")
         self.refresh_token = response.get("refresh_token")
-        self.expires = self._calculate_expires(response.get("expires_in"))
+        self.expires_at = self._calculate_expires_at(response.get("expires_in"))
 
+class SpotifyDevice:
+    def __init__(self, *args, **kwargs):
+        self.id = kwargs.get("id")
+        self.name = kwargs.get("name")
+        self.type = kwargs.get("type")
+
+    def get_data(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "type": self.type
+        } if self.validate_device() else None
+    
+    def validate_device(self):
+        return self.id is not None
 
 class SpotifyAPI:
     base_url = "https://api.spotify.com/v1"
     
     def __init__(self):
-        self.token_obj = SpotifyToken()
+        self.token = SpotifyToken()
+        self.device = SpotifyDevice()
 
-    def search(self, query: str) -> dict:
-        print(f"{self.base_url}/search?q={query}&type=track&limit=10)")
+    def _make_auth_headers(self):
+        return {
+            "Authorization": f"Bearer {self.token.access_token}"
+        }
+    
+    def get_data(self):
+        return {
+            "token": self._get_token_data(),
+            "device": self._get_device_data()
+        }
+    
+    def _get_token_data(self):
+        return self.token.get_data()
+    
+    def get_token_data(self, code: str):
+        self.token._create_token_data(code)
+
+    def _get_device_data(self):
+        return self.device.get_data()
+
+    def get_devices(self):
+        self.token.validate_token()
+
         response: dict = requests.get(
-            url=f"{self.base_url}/search?q={query}&type=track&limit=10",
-            
-            headers={
-                "Authorization": f"Bearer {self.token_obj.access_token}"
-            }
+            url=self.base_url+"/me/player/devices",
+            headers=self._make_auth_headers()
+        ).json()
+
+        return response
+
+    def get_current_queue(self):
+        self.token.validate_token()
+
+        url = self.base_url + "/me/player/queue"
+
+        response: dict = requests.get(
+            url=url,
+            headers=self._make_auth_headers()
+        ).json()
+
+        return response
+    
+    def get_currently_playing(self):
+        self.token.validate_token()
+
+        url = self.base_url + "/me/player/currently-playing"
+
+        response: dict = requests.get(
+            url=url,
+            headers=self._make_auth_headers()
+        ).json()
+
+        return response
+
+    def search(self, query: str, **kwargs) -> dict:
+        self.token.validate_token()
+        
+        url = f"{self.base_url}/search?q={query}&type=track&limit=10"
+
+        response: dict = requests.get(
+            url=url,
+            headers=self._make_auth_headers()
         )
-        print(response)
-        print(response.content)
-        response=response.json()
-        print(response)
+
         error = response.get("error")
         if error:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+        
         return response["tracks"]
 
 
-spotify_obj = SpotifyAPI()
+api_obj = SpotifyAPI()
 
 @app.get("/")
 async def root():
-    return {
-        "token": {
-            "access_token": spotify_obj.token_obj.access_token,
-            "token_type": spotify_obj.token_obj.token_type,
-            "refresh_token": spotify_obj.token_obj.refresh_token,
-            "expires": spotify_obj.token_obj.expires
-        }
-    }
+    return api_obj.get_data()
 
 @app.get("/login/", response_class=RedirectResponse, status_code=302)
 async def login():
-    url = spotify_obj.token_obj.create_auth_url()
+    url = api_obj.token.create_auth_url()
     return url
 
 @app.get("/callback/", response_class=RedirectResponse, status_code=302)
 async def spotify_callback(code: str, state: Optional[str] = None):
-    spotify_obj.token_obj.refresh(code)
-    return "http://localhost:8000/"
+    api_obj.get_token_data(code)
+    return HOME_URL
 
 @app.get("/current_queue/")
 async def get_current_queue():
-    return spotify_obj.token_obj.get_current_queue()
+    return api_obj.get_current_queue()
+
+@app.get("/currently_playing/")
+async def get_currently_playing():
+    return api_obj.get_currently_playing()
 
 @app.get("/search")
 async def search(q: str):
-    return spotify_obj.search(query=q)
+    return api_obj.search(query=q)
+
+@app.get("/devices/")
+async def get_devices():
+    return api_obj.get_devices()
+
+class Device(BaseModel):
+    id: int
+
+@app.post("/devices/")
+async def set_device(device: Device):
+    ...
+    # return spotify_obj.set_device()
