@@ -21,8 +21,10 @@ CLIENT_SECRET = os.environ.get("CLIENT_SECRET")
 
 assert CLIENT_ID is not None, "CLIENT_ID must be specified in env"
 assert CLIENT_SECRET is not None, "CLIENT_SECRET must be specified in env"
-assert BACKEND_IP is not None, "BACKEND_IP must be specified in env"
-assert BACKEND_PORT is not 0, "BACKEND_PORT must be specified in env"
-assert BACKEND_PORT_FORWARD is not 0, "BACKEND_PORT must be specified in env"
-assert FRONTEND_IP is not None, "FRONTEND_IP must be specified in env"
-assert FRONTEND_PORT is not 0, "FRONTEND_PORT_FORWARD must be specified in env"
+
+if DOCKER_RUN:
+    assert BACKEND_IP is not None, "BACKEND_IP must be specified in env"
+    assert BACKEND_PORT != 0, "BACKEND_PORT must be specified in env"
+    assert BACKEND_PORT_FORWARD != 0, "BACKEND_PORT must be specified in env"
+    assert FRONTEND_IP is not None, "FRONTEND_IP must be specified in env"
+    assert FRONTEND_PORT != 0, "FRONTEND_PORT_FORWARD must be specified in env"
