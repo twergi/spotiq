@@ -1,1 +1,1 @@
-export const API_BASE_PATH = "http://localhost:8000"
+export const API_BASE_PATH = "http://" + (process.env.REACT_APP_BACKEND_IP === undefined ? "localhost" : process.env.REACT_APP_BACKEND_IP) + ":" + (process.env.REACT_APP_BACKEND_PORT === undefined ? "8000" : process.env.REACT_APP_BACKEND_PORT)

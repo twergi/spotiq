@@ -1,6 +1,6 @@
 from fastapi import HTTPException, status
 from typing import Optional
-from utils.config import BACKEND_URL
+from utils.config import REDIRECT_URI
 import datetime as dt
 import requests
 from utils.config import CLIENT_ID, CLIENT_SECRET
@@ -22,7 +22,7 @@ class SpotifyToken:
 
     def create_auth_url(self) -> Optional[str]:
         response_type = "code"
-        redirect_uri = f"{BACKEND_URL}/callback/"
+        redirect_uri = f"{REDIRECT_URI}/callback/"
         scopes = (
             "user-read-playback-state",
             "user-read-currently-playing",
@@ -111,7 +111,7 @@ class SpotifyToken:
 
     def _create_token_data(self, code: str):
         grant_type = "authorization_code"
-        redirect_uri = f"{BACKEND_URL}/callback/"
+        redirect_uri = f"{REDIRECT_URI}/callback/"
 
         response: dict = requests.post(
             url=self.token_url,

@@ -1,17 +1,17 @@
 version: "3.9"
 
 services:
-
-
   backend:
     container_name: backend
     restart: always
     build:
       context: ./backend
+    environment:
+      DOCKER_RUN: "True"
     env_file:
-      - ./backend/.env
+      - .env
     ports:
-      - 8000:8000
+      - ${BACKEND_PORT_FORWARD}:${BACKEND_PORT}
     command: python run.py
 
   frontend:
@@ -19,8 +19,13 @@ services:
     restart: always
     build:
       context: ./frontend
+    env_file:
+      - .env
+    environment:
+      REACT_APP_BACKEND_IP: ${FRONTEND_IP}
+      REACT_APP_BACKEND_PORT: ${BACKEND_PORT_FORWARD}
     ports:
-      - 80:3000
+      - ${FRONTEND_PORT_FORWARD}:${FRONTEND_PORT}
     depends_on:
       - backend
-    command: serve -p 3000
+    command: serve build -p ${FRONTEND_PORT}
