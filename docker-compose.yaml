@@ -26,6 +26,8 @@ services:
       REACT_APP_BACKEND_PORT: ${BACKEND_PORT_FORWARD}
     ports:
       - ${FRONTEND_PORT_FORWARD}:${FRONTEND_PORT}
+    volumes:
+      - ./build:/source/build/
     depends_on:
       - backend
-    command: serve build -p ${FRONTEND_PORT}
+    command: npm start -p ${FRONTEND_PORT_FORWARD}
