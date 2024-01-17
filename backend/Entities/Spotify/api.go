@@ -17,3 +17,7 @@ type spotifyAPI struct {
 	token    SpotifyToken
 	decice   SpotifyDevice
 }
+
+func NewApi() SpotifyAPI {
+	return &spotifyAPI{}
+}

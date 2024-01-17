@@ -1,6 +1,8 @@
 package Spotify
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -17,6 +19,19 @@ type TokenData struct {
 	RefreshToken string
 	TokenType    string
 	ExpiresAt    time.Time
+}
+
+type RefreshTokenData struct {
+	GrantType    string `json:"grant_type"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+type RefreshTokenResponseData struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int    `json:"expires_in"`
+	TokenType    string `json:"token_type"`
+	Error        string `json:"error,omitempty"`
 }
 
 type SpotifyToken interface {
@@ -85,10 +100,54 @@ func (sToken *spotifyToken) IsValid() bool {
 func (sToken *spotifyToken) Refresh() {
 	var grantType string = "refresh_token"
 
+	refreshData := RefreshTokenData{
+		GrantType:    grantType,
+		RefreshToken: sToken.data.RefreshToken,
+	}
+
+	body, err := json.Marshal(refreshData)
+
+	if err != nil {
+		log.Panicln(err.Error())
+	}
+
+	bodyReader := bytes.NewReader(body)
+
 	response, err := http.Post(
 		sToken.tokenURL,
 		"application/x-www-form-urlencoded",
+		bodyReader,
 	)
+
+	if err != nil {
+		log.Panicln(err)
+	}
+
+	var responseBody []byte
+	response.Body.Read(responseBody)
+
+	if response.StatusCode != http.StatusOK {
+
+		log.Panicf(
+			"status code: %d, detail: %v",
+			response.StatusCode,
+			string(responseBody))
+	}
+
+	var responseData RefreshTokenResponseData
+	err = json.Unmarshal(responseBody, &responseData)
+
+	if err != nil {
+		log.Panicln(err)
+	}
+
+	expiresAt := time.Now().Add(time.Second * time.Duration(responseData.ExpiresIn))
+
+	sToken.data.AccessToken = responseData.AccessToken
+	sToken.data.RefreshToken = responseData.RefreshToken
+	sToken.data.ExpiresAt = expiresAt
+	sToken.data.TokenType = responseData.TokenType
+
 }
 
 func NewToken() SpotifyToken {
