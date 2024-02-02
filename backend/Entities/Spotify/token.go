@@ -37,6 +37,7 @@ type RefreshTokenResponseData struct {
 type SpotifyToken interface {
 	GetData() TokenData
 	CreateAuthURL() string
+	CreateTokenData(code string)
 	Refresh()
 	IsExpired() bool
 	IsValid() bool
@@ -147,6 +148,12 @@ func (sToken *spotifyToken) Refresh() {
 	sToken.data.RefreshToken = responseData.RefreshToken
 	sToken.data.ExpiresAt = expiresAt
 	sToken.data.TokenType = responseData.TokenType
+
+}
+
+func (sToken *spotifyToken) CreateTokenData(code string) {
+	grant_type := "authorization_code"
+	redirect_url := entities.RedirectURI
 
 }
 
