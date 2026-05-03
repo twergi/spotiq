@@ -58,7 +58,7 @@ const updateQueue = async (
   setCurrentlyPlaying
 ) => {
   try {
-    var response = await axios.get(`${API_BASE_PATH}/current_queue/`);
+    var response = await axios.get(`${API_BASE_PATH}/current_queue`);
   } catch (error) {
     console.log(error);
     toast({

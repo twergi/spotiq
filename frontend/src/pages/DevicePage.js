@@ -40,7 +40,7 @@ const DevicePage = ({ setShowDevice }) => {
     const getDevices = async () => {
       setLoading(true);
       try {
-        var response = await axios.get(`${API_BASE_PATH}/devices/`);
+        var response = await axios.get(`${API_BASE_PATH}/devices`);
         console.log(response);
       } catch (error) {
         toast({

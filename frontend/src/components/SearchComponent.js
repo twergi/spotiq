@@ -24,7 +24,7 @@ const ResultsItem = ({ uri, name, artistsNamesArr, imageUrl }) => {
     setLoading(true);
     console.log(uri);
     try {
-      var response = await axios.post(`${API_BASE_PATH}/current_queue/`, {
+      var response = await axios.post(`${API_BASE_PATH}/current_queue`, {
         uri: uri,
       });
     } catch (error) {

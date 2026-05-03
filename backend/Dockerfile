@@ -1,10 +1,12 @@
-FROM python:3.11-slim
+FROM golang:1.26-alpine AS builder
 
-ENV PYTHONUNBUFFERED 1
-ENV PYTHONDONTWRITEBYTECODE 1
-
-WORKDIR /source
+WORKDIR /app
 COPY . .
+RUN go mod download
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/bin/app ./.
 
-RUN pip install -r requirements.txt
+FROM alpine:latest
 
+COPY --from=builder /app/bin/app /app/bin/app
+WORKDIR /app
+CMD ["/app/bin/app"]
