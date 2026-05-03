@@ -17,10 +17,8 @@ services:
     env_file:
       - .env
     environment:
-      REACT_APP_BACKEND_IP: ${FRONTEND_IP}
-      REACT_APP_BACKEND_PORT: ${BACKEND_PORT_FORWARD}
+      REACT_APP_BACKEND_ADDR: ${BACKEND_ADDR}
     ports:
       - ${FRONTEND_PORT_FORWARD}:${FRONTEND_PORT}
     depends_on:
       - backend
-    command: serve build -p ${FRONTEND_PORT}

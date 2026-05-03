@@ -21,30 +21,23 @@ import {
 
 const ResultsItem = ({ name, artistsNamesArr, imageUrl }) => {
   return (
-    <HStack p="20px" bg="green.800" w="100%" gap="25px" overflowX="auto">
-      <Image src={imageUrl?.url} alt="image" boxSize="100px" />
+    <HStack bg="green.800" w="100%" gap="25px" overflowX="auto">
+      <Image 
+        src={imageUrl?.url || ''} 
+        alt="Track image" 
+        boxSize="100px" 
+        fallbackSrc="https://placehold.co/100"
+      />
       <VStack align="start">
         <HStack align="center">
-          <Text>Name:</Text>
           <Text bg="green.600" p="5px" borderRadius="5px">
-            {name}
+            {name || 'Unknown track'}
           </Text>
         </HStack>
         <HStack align="center">
-          <Text>Artists:</Text>
-          {artistsNamesArr?.map((artist, index) => {
-            return (
-              <Text
-                key={index}
-                mr="5px"
-                bg="green.700"
-                p="5px"
-                borderRadius="5px"
-              >
-                {artist?.name}
-              </Text>
-            );
-          })}
+          <Text mr="5px" bg="green.700" p="5px" borderRadius="5px">
+            {artistsNamesArr?.map(artist => artist?.name).filter(Boolean).join(', ') || 'Unknown artist'}
+          </Text>
         </HStack>
       </VStack>
     </HStack>
@@ -58,22 +51,30 @@ const updateQueue = async (
   setCurrentlyPlaying
 ) => {
   try {
-    var response = await axios.get(`${API_BASE_PATH}/current_queue`);
+    const response = await axios.get(`${API_BASE_PATH}/current_queue`);
+
+    setQueueResults(response?.data?.queue || []);
+    setCurrentlyPlaying(response?.data?.currently_playing || null);
+    
+    console.log(response);
   } catch (error) {
-    console.log(error);
+    console.error("Queue update error:", error);
+    
+    const errorMessage = error?.response?.data?.detail?.message 
+      || error?.message 
+      || "Unknown error occurred";
+    
     toast({
       title: "Error",
-      description: error.response?.data?.detail.message || error.message,
+      description: errorMessage,
       status: "error",
       duration: 8000,
       isClosable: true,
     });
-    setLoading(false);
-    return;
-  }
-  setQueueResults(response.data.queue);
-  setCurrentlyPlaying(response.data.currently_playing);
-  console.log(response);
+    
+    setQueueResults([]);
+    setCurrentlyPlaying(null);
+  } 
 };
 
 const QueueComponent = ({ setCurrentlyPlaying }) => {
@@ -82,44 +83,62 @@ const QueueComponent = ({ setCurrentlyPlaying }) => {
   const toast = useToast();
 
   useEffect(() => {
-    updateQueue(setQueueResults, toast, setLoading, setCurrentlyPlaying);
-    let interval = setInterval(() => {
-      updateQueue(setQueueResults, toast, setLoading, setCurrentlyPlaying);
-    }, 5000);
-    return () => {
-      clearInterval(interval);
+    let isMounted = true;
+    let interval;
+
+    const fetchData = async () => {
+      if (!isMounted) return;
+      await updateQueue(setQueueResults, toast, setLoading, setCurrentlyPlaying);
     };
-  }, []);
+
+    fetchData();
+
+    interval = setInterval(() => {
+      if (isMounted) {
+        updateQueue(setQueueResults, toast, setLoading, setCurrentlyPlaying);
+      }
+    }, 5000);
+
+    return () => {
+      isMounted = false;
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [setCurrentlyPlaying, toast]);
+
+  const hasQueueResults = queueResults && Array.isArray(queueResults) && queueResults.length > 0;
 
   return (
     <Accordion w="100%" allowToggle>
       <AccordionItem w="100%" border="none">
-        <AccordionButton w="100%">
+        <AccordionButton w="100%" pl="0px">
           <HStack spacing="20px">
-            <Heading fontSize="25px">Queue</Heading>{" "}
+            <Heading fontSize="25px" ml="2px">Очередь</Heading>
             <AccordionIcon style={{ scale: "2", marginTop: "7px" }} />
           </HStack>
         </AccordionButton>
         <AccordionPanel p="0" w="100%">
           <VStack
             w="100%"
-            // maxH="400px"
             overflowY={loading ? "none" : "auto"}
             align="start"
           >
             {loading ? (
               <Spinner mx="auto" color="green" size="lg" />
+            ) : !hasQueueResults ? (
+              <Text p="20px" color="gray.500" textAlign="center" w="100%">
+                Queue is empty
+              </Text>
             ) : (
-              queueResults?.map((item, index) => {
-                return (
-                  <ResultsItem
-                    key={index}
-                    name={item?.name}
-                    artistsNamesArr={item?.artists}
-                    imageUrl={item?.album?.images[1]}
-                  />
-                );
-              })
+              queueResults.map((item, index) => (
+                <ResultsItem
+                  key={item?.id || index}
+                  name={item?.name}
+                  artistsNamesArr={item?.artists}
+                  imageUrl={item?.album?.images?.[1]}
+                />
+              ))
             )}
           </VStack>
         </AccordionPanel>

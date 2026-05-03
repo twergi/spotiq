@@ -19,7 +19,7 @@ const App = () => {
     const setUp = async () => {
       setLoading(true);
       try {
-        var response = await axios.get(`${API_BASE_PATH}/`);
+        var response = await axios.get(`${API_BASE_PATH}/state`);
         // console.log(response)
       } catch (error) {
         console.log(error);
@@ -34,12 +34,12 @@ const App = () => {
         return;
       }
 
-      if (response.data.token === null) {
+      if (response.data.token_set === false) {
         setShowLogin(true);
         setLoading(false);
         return;
       }
-      if (response.data.device === null) {
+      if (response.data.device_set === false) {
         setShowDevice(true);
         setLoading(false);
         return;

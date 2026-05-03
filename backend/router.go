@@ -2,229 +2,181 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
-	"net/url"
-)
 
-const (
-	baseURL = "https://api.spotify.com/v1"
+	"github.com/go-chi/chi/v5"
+	"github.com/rs/cors"
 )
 
 type Router struct {
-	token  *Token
-	device *Device
+	mux *chi.Mux
+
+	q    *Queue
+	c    *HTTPConstructor
+	conf *Config
 }
 
-func NewRouter(redirectURI, clientID, clientSecret string) *Router {
-	return &Router{
-		token:  NewToken(redirectURI, clientID, clientSecret),
-		device: NewDevice(),
+func NewRouter(
+	conf *Config,
+	q *Queue,
+	c *HTTPConstructor,
+) *Router {
+	r := &Router{
+		q:    q,
+		c:    c,
+		conf: conf,
 	}
+
+	r.initMux(conf)
+
+	return r
 }
 
-func (r *Router) clearData() {
-	r.token = &Token{}
-	r.device = &Device{}
+func (rr *Router) initMux(conf *Config) {
+	mux := chi.NewMux()
+
+	cors := cors.New(cors.Options{
+		AllowedOrigins:   conf.CORSAllowedOrigins,
+		AllowedMethods:   []string{http.MethodGet, http.MethodPost},
+		AllowedHeaders:   []string{"*"},
+		AllowCredentials: true,
+	})
+
+	mux.Use(cors.Handler)
+
+	mux.Get("/state", rr.getState)
+	mux.Get("/login", rr.login)
+	mux.Get("/logout", rr.logout)
+	mux.Get("/callback", rr.callback)
+	mux.Get("/current_queue", rr.getQueue)
+	mux.Post("/current_queue", rr.enqueue)
+	mux.Get("/search", rr.search)
+	mux.Get("/devices", rr.getDevices)
+	mux.Post("/devices", rr.setDevice)
+
+	rr.mux = mux
 }
 
-func (r *Router) _makeAuthHeaders() (name, value string) {
-	return "Authorization", "Bearer " + r.token.access
+func (rr *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	rr.mux.ServeHTTP(w, r)
 }
 
-func (r *Router) getData() map[string]any {
-	resp := make(map[string]any, 2)
-
-	if data, ok := r.token.getData(); ok {
-		resp["token"] = data
-	} else {
-		resp["token"] = nil
+func (rr *Router) getState(w http.ResponseWriter, r *http.Request) {
+	state := rr.q.GetState()
+	body, err := json.Marshal(state)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	if data, ok := r.device.getData(); ok {
-		resp["device"] = data
-	} else {
-		resp["device"] = nil
-	}
-
-	return resp
+	w.Write(body)
 }
 
-func (r *Router) createTokenData(code string) error {
-	return r.token._createTokenData(code)
+func (rr *Router) login(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, rr.c.AuthURL(), http.StatusTemporaryRedirect)
 }
 
-func (r *Router) getDevices() ([]byte, error) {
-	r.token.validateToken()
-
-	req, err := http.NewRequest(http.MethodGet, baseURL+"/me/player/devices", nil)
-	if err != nil {
-		return nil, err
-	}
-
-	authHeader, authHValue := r._makeAuthHeaders()
-	req.Header.Add(authHeader, authHValue)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New("response status code not 200:" + string(body))
-	}
-
-	return body, nil
+func (rr *Router) logout(w http.ResponseWriter, r *http.Request) {
+	rr.q.ClearState()
+	http.Redirect(w, r, rr.conf.FrontURL, http.StatusTemporaryRedirect)
 }
 
-func (r *Router) getCurrentQueue() ([]byte, error) {
-	r.token.validateToken()
-
-	url := baseURL + "/me/player/queue"
-
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+func (rr *Router) callback(w http.ResponseWriter, r *http.Request) {
+	err := rr.q.FinishLogin(r.Context(), r.URL.Query().Get("code"))
 	if err != nil {
-		return nil, err
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	authHeader, authHValue := r._makeAuthHeaders()
-	req.Header.Add(authHeader, authHValue)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New("response status code not 200:" + string(body))
-	}
-
-	return body, nil
+	http.Redirect(w, r, rr.conf.FrontURL, http.StatusTemporaryRedirect)
 }
 
-type SongInfo struct {
-	URI string
+func (rr *Router) getQueue(w http.ResponseWriter, r *http.Request) {
+	queue := rr.q.GetQueue(r.Context())
+
+	body, err := json.Marshal(queue)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Write(body)
 }
 
-func (r *Router) addToQueue(songInfo SongInfo) error {
-	r.token.validateToken()
+func (rr *Router) enqueue(w http.ResponseWriter, r *http.Request) {
+	defer discard(r.Body)
 
-	url := baseURL + "/me/player/queue"
-
-	req, err := http.NewRequest(http.MethodPost, url, nil)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		return err
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	query := req.URL.Query()
-	query.Add("uri", songInfo.URI)
-	query.Add("device_id", r.device.id)
-	req.URL.RawQuery = query.Encode()
-
-	authHeader, authHValue := r._makeAuthHeaders()
-	req.Header.Set(authHeader, authHValue)
-
-	resp, err := http.DefaultClient.Do(req)
+	song := EnqueuePayload{}
+	err = json.Unmarshal(body, &song)
 	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return errors.New("response status code not 200:" + string(body) + ", status: " + resp.Status)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	return nil
+	err = rr.q.Enqueue(r.Context(), song.URI)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
-func (r *Router) getCurrentlyPlaying() ([]byte, error) {
-	r.token.validateToken()
-
-	url := baseURL + "/me/player/currently-playing"
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+func (rr *Router) search(w http.ResponseWriter, r *http.Request) {
+	tracks, err := rr.q.Search(r.Context(), r.URL.Query().Get("q"))
 	if err != nil {
-		return nil, err
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	authHeader, authHValue := r._makeAuthHeaders()
-	req.Header.Add(authHeader, authHValue)
-
-	resp, err := http.DefaultClient.Do(req)
+	body, err := json.Marshal(tracks)
 	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New("response status code not 200:" + string(body))
-	}
-
-	return body, nil
+	w.Write(body)
 }
 
-type SearchResponseBody struct {
-	Error  string `json:"error"`
-	Tracks []any  `json:"tracks"`
+func (rr *Router) getDevices(w http.ResponseWriter, r *http.Request) {
+	devices, err := rr.q.GetDevices(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	body, err := json.Marshal(devices)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Write(body)
 }
 
-func (r *Router) search(query string) ([]byte, error) {
-	r.token.validateToken()
-
-	url, err := url.Parse(baseURL + "/search")
+func (rr *Router) setDevice(w http.ResponseWriter, r *http.Request) {
+	data := Device{}
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		return nil, err
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer discard(r.Body)
+
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	q := url.Query()
-	q.Add("q", query)
-	q.Add("type", "track")
-	q.Add("limit", "10")
+	rr.q.SetDevice(data)
 
-	url.RawQuery = q.Encode()
-
-	req, err := http.NewRequest(http.MethodGet, url.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	authHeader, authHValue := r._makeAuthHeaders()
-	req.Header.Add(authHeader, authHValue)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	bodyRaw, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	respBody := map[string]json.RawMessage{}
-	err = json.Unmarshal(bodyRaw, &respBody)
-	if err != nil {
-		return nil, err
-	}
-
-	return respBody["tracks"], nil
+	w.WriteHeader(http.StatusOK)
 }

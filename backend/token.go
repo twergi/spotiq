@@ -1,126 +1,87 @@
 package main
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
-	"net/url"
-	"strings"
+	"sync"
 	"time"
 )
 
-const (
-	tokenURL = "https://accounts.spotify.com/api/token"
-	loginURL = "https://accounts.spotify.com/authorize"
-)
-
-type Token struct {
+type TokenService struct {
 	access    string
 	refresh   string
 	ttype     string
 	expiresAt time.Time
 
-	redirectURI            string
-	clientID, clientSecret string
+	conf   *Config
+	c      *HTTPConstructor
+	client *http.Client
+
+	lock   sync.RWMutex
+	ctx    context.Context
+	cancel func()
 }
 
-func NewToken(redirectURI, clientID, clientSecret string) *Token {
-	return &Token{
-		redirectURI:  redirectURI,
-		clientID:     clientID,
-		clientSecret: clientSecret,
+func NewTokenService(
+	ctx context.Context,
+	conf *Config,
+	c *HTTPConstructor,
+	client *http.Client,
+) *TokenService {
+	return &TokenService{
+		conf:   conf,
+		c:      c,
+		ctx:    ctx,
+		client: client,
 	}
 }
 
-func (t *Token) createAuthURL() (string, error) {
-	responseType := "code"
-	redirectURI := t.redirectURI + "/callback"
-	scopes := []string{
-		"user-read-playback-state",
-		"user-read-currently-playing",
-		"user-modify-playback-state",
+func (t *TokenService) Clear() {
+	if !t.Ready() {
+		return
 	}
 
-	authURL, err := url.Parse(loginURL)
-	if err != nil {
-		return "", err
-	}
+	t.lock.Lock()
+	defer t.lock.Unlock()
 
-	query := authURL.Query()
-	query.Add("scope", strings.Join(scopes, " "))
-	query.Add("response_type", responseType)
-	query.Add("redirect_uri", redirectURI)
-	query.Add("client_id", t.clientID)
-
-	authURL.RawQuery = query.Encode()
-
-	return authURL.String(), nil
+	t.cancel()
+	t.access = ""
+	t.refresh = ""
+	t.ttype = ""
+	t.expiresAt = time.Time{}
+	t.cancel = nil
 }
 
-func (t *Token) ready() bool {
-	return !t.expiresAt.IsZero()
+func (t *TokenService) Ready() bool {
+	t.lock.RLock()
+	defer t.lock.RUnlock()
+	return !t.expired()
 }
 
-func (t *Token) expired() bool {
-	if !t.ready() {
-		return true
-	}
-
-	return time.Now().Add(-time.Second * 10).After(t.expiresAt)
+func (t *TokenService) expired() bool {
+	return t.expiresAt.IsZero() ||
+		time.Now().Add(-time.Second*10).After(t.expiresAt)
 }
 
-func (t *Token) getData() (map[string]any, bool) {
-	if !t.ready() {
-		return nil, false
-	}
+func (t *TokenService) refreshToken(ctx context.Context) error {
+	t.lock.RLock()
 
-	return map[string]any{
-		"access_token":  t.access,
-		"token_type":    t.ttype,
-		"refresh_token": t.refresh,
-		"expires_at":    t.expiresAt,
-	}, true
-}
-
-func (t *Token) validateToken() error {
-	if !t.ready() {
-		return nil
-	}
-
-	if t.expired() {
-		return t.refreshToken()
-	}
-
-	return nil
-}
-
-type refreshResponseBody struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int    `json:"expires_in"`
-	TokenType    string `json:"token_type"`
-	Error        string `json:"error"`
-}
-
-func (t *Token) refreshToken() error {
-	grantType := "refresh_token"
-
-	bodyData := map[string]any{
-		"grant_type":    grantType,
-		"refresh_token": t.refresh,
-	}
-	bodyRaw, err := json.Marshal(bodyData)
+	req, err := t.c.RefreshTokenRequest(ctx, t.refresh)
 	if err != nil {
 		return err
 	}
 
-	resp, err := http.Post(tokenURL, "application/json", bytes.NewReader(bodyRaw))
+	t.lock.RUnlock()
+
+	resp, err := t.client.Do(req)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer discard(req.Body)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -128,81 +89,82 @@ func (t *Token) refreshToken() error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return errors.New("response status code not 200:" + string(body))
+		return errors.New("refresh token error:" + string(body))
 	}
 
-	responseBody := refreshResponseBody{}
+	responseBody := AuthPayload{}
 	err = json.Unmarshal(body, &responseBody)
 	if err != nil {
 		return err
 	}
 
-	if responseBody.Error != "" {
-		return errors.New(responseBody.Error)
-	}
-
-	if responseBody.ExpiresIn != 0 {
-		t.expiresAt = _calculateExpiresAt(time.Second * time.Duration(responseBody.ExpiresIn))
-	}
-	if responseBody.AccessToken != "" {
-		t.access = responseBody.AccessToken
-	}
-	if responseBody.RefreshToken != "" {
-		t.refresh = responseBody.RefreshToken
-	}
-	if responseBody.TokenType != "" {
-		t.ttype = responseBody.TokenType
-	}
-
-	return nil
-}
-
-func (t *Token) _createTokenData(code string) error {
-	grantType := "authorization_code"
-	redirectURI := t.redirectURI + "/callback"
-
-	bodyData := url.Values{
-		"client_id":     []string{t.clientID},
-		"client_secret": []string{t.clientSecret},
-		"redirect_uri":  []string{redirectURI},
-		"grant_type":    []string{grantType},
-		"code":          []string{code},
-	}
-
-	resp, err := http.PostForm(tokenURL, bodyData)
-	if err != nil {
-		return err
-	}
-
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return errors.New("response status code not 200:" + string(body))
-	}
-
-	responseBody := refreshResponseBody{}
-	err = json.Unmarshal(body, &responseBody)
-	if err != nil {
-		return err
-	}
+	t.lock.Lock()
+	defer t.lock.Unlock()
 
 	if responseBody.Error != "" {
 		return errors.New(responseBody.Error)
 	}
 
-	t.expiresAt = _calculateExpiresAt(time.Second * time.Duration(responseBody.ExpiresIn))
-	t.access = responseBody.AccessToken
-	t.refresh = responseBody.RefreshToken
-	t.ttype = responseBody.TokenType
+	payload := responseBody.TokenPayload
+	if payload.RefreshToken == "" {
+		payload.RefreshToken = t.refresh
+	}
+
+	t.setToken(payload)
 
 	return nil
 }
 
-func _calculateExpiresAt(expiresIn time.Duration) time.Time {
-	return time.Now().Add(expiresIn)
+func (t *TokenService) SetToken(payload TokenPayload) {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+	t.setToken(payload)
+}
+
+func (t *TokenService) setToken(payload TokenPayload) {
+	t.expiresAt = time.Now().Add(time.Second * time.Duration(payload.ExpiresIn))
+	t.access = payload.AccessToken
+	t.refresh = payload.RefreshToken
+	t.ttype = payload.TokenType
+	t.setupRefreshTimer()
+}
+
+func (t *TokenService) setupRefreshTimer() {
+	if t.cancel != nil {
+		t.cancel()
+	}
+
+	ctx, cancel := context.WithCancel(t.ctx)
+	t.cancel = cancel
+	deadline := time.Until(t.expiresAt.Add(-time.Minute * 2))
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			slog.InfoContext(ctx, "refresh timer context cancelled")
+			return
+		case <-time.After(deadline):
+			for {
+				slog.InfoContext(ctx, "refreshing token")
+				err := t.refreshToken(ctx)
+				if err != nil {
+					slog.ErrorContext(ctx, "error refreshing token, retrying...", "error", err.Error())
+					time.Sleep(time.Second * 5)
+					if ctx.Err() != nil {
+						return
+					}
+					continue
+				}
+				slog.InfoContext(ctx, "token refreshed")
+				return
+			}
+		}
+	}()
+}
+
+func (t *TokenService) GetAccessToken() string {
+	t.lock.RLock()
+	defer t.lock.RUnlock()
+
+	return t.access
 }

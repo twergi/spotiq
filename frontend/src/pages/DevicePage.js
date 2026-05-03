@@ -53,7 +53,7 @@ const DevicePage = ({ setShowDevice }) => {
         setLoading(false);
         return;
       }
-      setDevicesArr(response.data.devices);
+      setDevicesArr(response.data);
       setLoading(false);
     };
     getDevices();

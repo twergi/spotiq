@@ -52,7 +52,7 @@ const ResultsItem = ({ uri, name, artistsNamesArr, imageUrl }) => {
   };
 
   return (
-    <HStack p="20px" bg="gray.700" w="100%" gap="25px" overflowX="auto">
+    <HStack pl="20px" pr="20px" bg="gray.700" w="100%" gap="25px" overflowX="auto">
       <IconButton
         bg="green.400"
         icon={loading ? <Spinner /> : <AddIcon />}
@@ -62,29 +62,13 @@ const ResultsItem = ({ uri, name, artistsNamesArr, imageUrl }) => {
       />
       <Image src={imageUrl.url} alt="image" boxSize="100px" />
       <VStack align="start">
-      <HStack>
-          <Text>Name:</Text>
-          <Text bg="gray.900" p="5px" borderRadius="5px">
-            {name}
-          </Text>
+        <HStack>
+          <Text bg="gray.900" p="5px" borderRadius="5px">{name}</Text>
         </HStack>
         <HStack align="center">
-          <Text>
-            Artists:
+          <Text mr="5px" bg="gray.800" p="5px" borderRadius="5px">
+            {artistsNamesArr?.map(artist => artist?.name).filter(Boolean).join(', ') || 'Unknown artist'}
           </Text>
-          {artistsNamesArr.map((artist, index) => {
-            return (
-              <Text
-                key={index}
-                mr="5px"
-                bg="gray.800"
-                p="5px"
-                borderRadius="5px"
-              >
-                {artist.name}
-              </Text>
-            );
-          })}
         </HStack>
       </VStack>
     </HStack>
@@ -116,8 +100,8 @@ const SearchComponent = () => {
         setLoading(false);
         return;
       }
-      console.log(response.data.items);
-      setSearchResults(response.data.items);
+      console.log(response.data);
+      setSearchResults(response.data);
       setLoading(false);
     };
     lookup();
@@ -125,21 +109,21 @@ const SearchComponent = () => {
 
   return (
     <VStack w="100%">
-      <Heading fontSize="25px" alignSelf="start" ml="18px">Search</Heading>
+      <Heading fontSize="25px" alignSelf="start" ml="2px">Поиск</Heading>
       <HStack w="100%" as="form" onSubmit={handleSubmitQuery}>
-      <InputGroup>
-        <Input
-          focusBorderColor="green.100"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search for track..."
+        <InputGroup>
+          <Input
+            focusBorderColor="green.100"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Название, исполнитель..."
           />
           {query !== "" &&
-          <InputRightElement _hover={{cursor: "pointer"}} onClick={() => {
-            setQuery("");
-            setSearchResults([]);
-          }} children={<CloseIcon/>}/> }
-          </InputGroup>
+            <InputRightElement _hover={{ cursor: "pointer" }} onClick={() => {
+              setQuery("");
+              setSearchResults([]);
+            }} children={<CloseIcon />} />}
+        </InputGroup>
         <IconButton colorScheme="green" icon={<SearchIcon />} type="submit" />
 
       </HStack>

@@ -1,39 +1,34 @@
 package main
 
-type Device struct {
+type DeviceService struct {
 	id    string
 	name  string
 	dtype string
+	set   bool
 }
 
-func NewDevice() *Device {
-	return &Device{}
+func NewDeviceService() *DeviceService {
+	return &DeviceService{}
 }
 
-type DeviceData struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Type string `json:"type"`
+func (d *DeviceService) Clear() {
+	d.id = ""
+	d.name = ""
+	d.dtype = ""
+	d.set = false
 }
 
-func (d *Device) getData() (DeviceData, bool) {
-	if !d.validateDevice() {
-		return DeviceData{}, false
-	}
-
-	return DeviceData{
-		ID:   d.id,
-		Name: d.name,
-		Type: d.dtype,
-	}, true
-}
-
-func (d *Device) setData(data DeviceData) {
+func (d *DeviceService) SetDevice(data Device) {
 	d.id = data.ID
 	d.name = data.Name
 	d.dtype = data.Type
+	d.set = true
 }
 
-func (d *Device) validateDevice() bool {
-	return d.id != ""
+func (d *DeviceService) Ready() bool {
+	return d.set
+}
+
+func (d *DeviceService) GetCurrentDeviceID() string {
+	return d.id
 }
